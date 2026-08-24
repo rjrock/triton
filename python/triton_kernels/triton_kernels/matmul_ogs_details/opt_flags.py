@@ -125,13 +125,12 @@ def make_default_opt_flags_amd(
 
     if bitwidth(lhs_dtype) == 16 and bitwidth(rhs_dtype) == 4 and precision_config.weight_scale is not None:
         # specific configs for F16 x MXFP4 on CDNA4
-        # Note that these configs will exceed LDS usage with async copy enabled
         if is_cdna4:
             split_k = 1
             if m <= 1024:
                 target_kernel_kwargs["waves_per_eu"] = 3
                 block_n = 128
-                block_k = 256
+                block_k = 128
                 num_warps = 4
             else:
                 target_kernel_kwargs["waves_per_eu"] = 0
