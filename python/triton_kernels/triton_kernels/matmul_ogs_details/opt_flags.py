@@ -127,17 +127,32 @@ def make_default_opt_flags_amd(
         # specific configs for F16 x MXFP4 on CDNA4
         if is_cdna4:
             split_k = 1
+            # num_stages=1 (not the default 2) for both tiles below: with
+            # AsyncCopy enabled by default on gfx950, num_stages=2 needs
+            # ~204-208KB of shared memory for these tiles, exceeding
+            # gfx950's 160KB (163840B) per-CU limit ->
+            # triton.runtime.errors.OutOfResources. Reducing block_k here
+            # instead (as CDNA3/CDNA4 elsewhere in this file sometimes
+            # does) is NOT viable: it would shrink MX_SCALE_BLOCK_K =
+            # BLOCK_K // 32 below 8, which breaks the power-of-2 shape
+            # requirement in unswizzle_mx_scale_cdna4()'s reshape (CDNA4's
+            # native MX-scale swizzle format requires MX_SCALE_BLOCK_K % 8
+            # == 0). num_stages=1 avoids that constraint entirely while
+            # still fitting comfortably under the LDS budget (est. ~84KB
+            # and ~103KB respectively for these two tiles).
             if m <= 1024:
                 target_kernel_kwargs["waves_per_eu"] = 3
                 block_n = 128
-                block_k = 128
+                block_k = 256
                 num_warps = 4
+                num_stages = 1
             else:
                 target_kernel_kwargs["waves_per_eu"] = 0
                 block_m = 64
                 block_n = 512
                 block_k = 256
                 num_warps = 8
+                num_stages = 1
 
         # Specific configs for F16 x MXFP4 on RDNA.
         if get_rdna_version() in (3, 4):
